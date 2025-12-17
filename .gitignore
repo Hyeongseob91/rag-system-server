@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.claude
+
+# Project
+weaviate_data/
+uploads/
+*.log
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
