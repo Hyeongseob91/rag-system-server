@@ -1,118 +1,251 @@
-"""VectorStore Service - Weaviate"""
-import os
+"""
+VectorStore Service - Qdrant Hybrid Search (Dense + BM25 Sparse)
+"""
+import uuid
 from typing import TYPE_CHECKING, List, Optional
 
-import weaviate
-from weaviate.classes.config import Configure, DataType, Property
-from weaviate.classes.query import MetadataQuery
+from langchain_openai import OpenAIEmbeddings
+from qdrant_client import QdrantClient
+from qdrant_client.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    MatchValue,
+    PointStruct,
+    Prefetch,
+    Query,
+    SparseVectorParams,
+    VectorParams,
+)
 
 from ..config import Settings
+from .bm25 import BM25Service
 
 if TYPE_CHECKING:
     from ..schemas.preprocessing import Chunk
 
 
 class VectorStoreService:
+    """Qdrant Hybrid Search (Dense + BM25 Sparse) 서비스
+
+    Dense Vector (OpenAI Embeddings)와 Sparse Vector (BM25)를 함께 사용하여
+    Hybrid Search를 수행합니다. RRF (Reciprocal Rank Fusion)로 결과를 융합합니다.
+
+    Reference:
+        https://qdrant.tech/articles/hybrid-search/
+    """
+
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._client: Optional[weaviate.WeaviateClient] = None
-        self._collection = None
+        self._client: Optional[QdrantClient] = None
+        self._embeddings: Optional[OpenAIEmbeddings] = None
+        self._bm25: Optional[BM25Service] = None
 
     @property
-    def client(self) -> weaviate.WeaviateClient:
+    def client(self) -> QdrantClient:
+        """Qdrant 클라이언트 (Lazy Loading)"""
         if self._client is None:
-            self._connect()
+            self._client = QdrantClient(
+                host=self.settings.vectorstore.host,
+                port=self.settings.vectorstore.port,
+            )
         return self._client
 
     @property
-    def collection(self):
-        if self._collection is None:
-            self._collection = self.client.collections.get(self.settings.vectorstore.collection_name)
-        return self._collection
+    def embeddings(self) -> OpenAIEmbeddings:
+        """OpenAI Embeddings (Lazy Loading)"""
+        if self._embeddings is None:
+            self._embeddings = OpenAIEmbeddings(
+                model=self.settings.embedding.model
+            )
+        return self._embeddings
 
-    def _connect(self) -> None:
-        vs = self.settings.vectorstore
-        if vs.use_embedded:
-            if not os.path.exists(vs.data_path):
-                os.makedirs(vs.data_path)
-            self._client = weaviate.connect_to_embedded(
-                version=vs.weaviate_version,
-                persistence_data_path=vs.data_path,
-                headers={"X-OpenAI-Api-Key": os.getenv("OPENAI_API_KEY")},
-                environment_variables={
-                    "ENABLE_MODULES": "text2vec-openai",
-                    "DEFAULT_VECTORIZER_MODULE": "text2vec-openai",
-                },
-            )
-        else:
-            self._client = weaviate.connect_to_local(
-                host=vs.weaviate_host,
-                port=vs.weaviate_port,
-                grpc_port=vs.weaviate_grpc_port,
-                headers={"X-OpenAI-Api-Key": os.getenv("OPENAI_API_KEY")},
-            )
+    @property
+    def bm25(self) -> BM25Service:
+        """BM25 Service (Lazy Loading)"""
+        if self._bm25 is None:
+            self._bm25 = BM25Service()
+        return self._bm25
 
     def is_ready(self) -> bool:
-        return self.client.is_ready()
+        """Qdrant 서버 연결 확인"""
+        try:
+            self.client.get_collections()
+            return True
+        except Exception:
+            return False
 
     def close(self) -> None:
-        if self._client is not None and self._client.is_connected():
+        """클라이언트 종료"""
+        if self._client is not None:
             self._client.close()
             self._client = None
-            self._collection = None
 
-    def create_collection(self, extended_schema: bool = True) -> None:
-        name = self.settings.vectorstore.collection_name
-        if self.client.collections.exists(name):
-            self.client.collections.delete(name)
+    def collection_exists(self) -> bool:
+        """컬렉션 존재 여부 확인"""
+        collections = self.client.get_collections().collections
+        return any(c.name == self.settings.vectorstore.collection_name for c in collections)
 
-        properties = [Property(name="content", data_type=DataType.TEXT)]
-        if extended_schema:
-            properties.extend([
-                Property(name="chunk_id", data_type=DataType.TEXT),
-                Property(name="doc_id", data_type=DataType.TEXT),
-                Property(name="chunk_index", data_type=DataType.INT),
-                Property(name="total_chunks", data_type=DataType.INT),
-                Property(name="source", data_type=DataType.TEXT),
-                Property(name="file_name", data_type=DataType.TEXT),
-                Property(name="file_type", data_type=DataType.TEXT),
-                Property(name="char_count", data_type=DataType.INT),
-                Property(name="page_number", data_type=DataType.INT),
-                Property(name="sheet_name", data_type=DataType.TEXT),
-                Property(name="created_at", data_type=DataType.DATE),
-            ])
+    def create_collection(self) -> None:
+        """컬렉션 생성 (Dense + Sparse 벡터)"""
+        collection_name = self.settings.vectorstore.collection_name
 
-        self._collection = self.client.collections.create(
-            name=name,
-            vectorizer_config=Configure.Vectorizer.text2vec_openai(
-                model=self.settings.vectorstore.embedding_model
-            ),
-            inverted_index_config=Configure.inverted_index(
-                bm25_b=self.settings.vectorstore.bm25_b,
-                bm25_k1=self.settings.vectorstore.bm25_k1,
-            ),
-            properties=properties,
+        # 기존 컬렉션 삭제
+        if self.collection_exists():
+            self.client.delete_collection(collection_name)
+
+        # 새 컬렉션 생성 (Dense + Sparse)
+        self.client.create_collection(
+            collection_name=collection_name,
+            vectors_config={
+                self.settings.vectorstore.dense_vector_name: VectorParams(
+                    size=self.settings.vectorstore.dense_vector_size,
+                    distance=Distance.COSINE
+                )
+            },
+            sparse_vectors_config={
+                self.settings.vectorstore.sparse_vector_name: SparseVectorParams()
+            }
         )
 
     def add_chunks(self, chunks: List["Chunk"]) -> int:
-        added = 0
-        with self.collection.batch.dynamic() as batch:
-            for chunk in chunks:
-                batch.add_object(properties=chunk.to_weaviate_object())
-                added += 1
-        return added
+        """청크 추가 (Dense + Sparse 벡터 동시 저장)
+
+        Args:
+            chunks: 저장할 청크 리스트
+
+        Returns:
+            추가된 청크 수
+        """
+        if not chunks:
+            return 0
+
+        texts = [c.content for c in chunks]
+
+        # Dense vectors (OpenAI)
+        dense_vectors = self.embeddings.embed_documents(texts)
+
+        # Sparse vectors (BM25)
+        sparse_vectors = self.bm25.encode(texts)
+
+        # Points 생성
+        points = []
+        for i, (chunk, dense_vec, sparse_vec) in enumerate(zip(chunks, dense_vectors, sparse_vectors)):
+            point_id = str(uuid.uuid4())
+            payload = chunk.to_qdrant_payload()
+
+            points.append(
+                PointStruct(
+                    id=point_id,
+                    vector={
+                        self.settings.vectorstore.dense_vector_name: dense_vec,
+                        self.settings.vectorstore.sparse_vector_name: sparse_vec
+                    },
+                    payload=payload
+                )
+            )
+
+        # Qdrant에 저장
+        self.client.upsert(
+            collection_name=self.settings.vectorstore.collection_name,
+            points=points
+        )
+
+        return len(points)
 
     def get_document_count(self) -> int:
-        result = self.collection.aggregate.over_all(total_count=True)
-        return result.total_count or 0
+        """저장된 문서(청크) 수 조회"""
+        if not self.collection_exists():
+            return 0
+        collection_info = self.client.get_collection(self.settings.vectorstore.collection_name)
+        return collection_info.points_count or 0
 
-    def hybrid_search(self, query: str, alpha: Optional[float] = None, limit: Optional[int] = None) -> List[str]:
-        if alpha is None:
-            alpha = self.settings.retriever.hybrid_alpha
+    def hybrid_search(self, query: str, limit: Optional[int] = None) -> List[str]:
+        """Hybrid Search (Dense + BM25) with RRF Fusion
+
+        Args:
+            query: 검색 쿼리
+            limit: 반환할 결과 수 (기본값: settings.retriever.initial_limit)
+
+        Returns:
+            검색된 문서 내용 리스트
+        """
         if limit is None:
             limit = self.settings.retriever.initial_limit
 
-        response = self.collection.query.hybrid(
-            query=query, alpha=alpha, limit=limit, return_metadata=MetadataQuery(score=True)
+        # 쿼리 벡터 생성
+        dense_query = self.embeddings.embed_query(query)
+        sparse_query = self.bm25.encode_query(query)
+
+        # Hybrid Search with Prefetch + RRF
+        results = self.client.query_points(
+            collection_name=self.settings.vectorstore.collection_name,
+            prefetch=[
+                Prefetch(
+                    query=dense_query,
+                    using=self.settings.vectorstore.dense_vector_name,
+                    limit=limit
+                ),
+                Prefetch(
+                    query=sparse_query,
+                    using=self.settings.vectorstore.sparse_vector_name,
+                    limit=limit
+                )
+            ],
+            query=Query(fusion="rrf"),  # Reciprocal Rank Fusion
+            limit=limit
         )
-        return [obj.properties["content"] for obj in response.objects]
+
+        return [point.payload.get("content", "") for point in results.points]
+
+    def search_by_file(self, file_name: str, limit: int = 100) -> List[str]:
+        """특정 파일에서 검색
+
+        Args:
+            file_name: 파일명
+            limit: 반환할 결과 수
+
+        Returns:
+            해당 파일의 문서 내용 리스트
+        """
+        results = self.client.scroll(
+            collection_name=self.settings.vectorstore.collection_name,
+            scroll_filter=Filter(
+                must=[
+                    FieldCondition(
+                        key="file_name",
+                        match=MatchValue(value=file_name)
+                    )
+                ]
+            ),
+            limit=limit
+        )
+
+        return [point.payload.get("content", "") for point in results[0]]
+
+    def delete_by_file(self, file_name: str) -> int:
+        """특정 파일의 모든 청크 삭제
+
+        Args:
+            file_name: 삭제할 파일명
+
+        Returns:
+            삭제된 청크 수
+        """
+        # 삭제 전 개수 확인
+        before_count = len(self.search_by_file(file_name))
+
+        # 삭제
+        self.client.delete(
+            collection_name=self.settings.vectorstore.collection_name,
+            points_selector=Filter(
+                must=[
+                    FieldCondition(
+                        key="file_name",
+                        match=MatchValue(value=file_name)
+                    )
+                ]
+            )
+        )
+
+        return before_count

@@ -43,11 +43,22 @@ class PDFParser(BaseParser):
     def supported_extensions(self) -> List[str]:
         return ["pdf"]
 
-    def parse(self, file_path: str) -> RawDocument:
+    def parse(self, file_path: str, max_pages: int = None) -> RawDocument:
+        """PDF 파일 파싱
+
+        Args:
+            file_path: PDF 파일 경로
+            max_pages: 최대 처리 페이지 수 (None이면 전체 페이지)
+
+        Returns:
+            RawDocument 객체
+        """
         file_info = self._get_file_info(file_path)
         pages = []
         with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
+            # max_pages가 지정되면 해당 페이지까지만 처리
+            pages_to_process = pdf.pages[:max_pages] if max_pages else pdf.pages
+            for page in pages_to_process:
                 text = page.extract_text() or ""
                 pages.append(text)
                 for table in page.extract_tables():
@@ -55,7 +66,8 @@ class PDFParser(BaseParser):
                         table_text = "\n".join(" | ".join(str(c or "") for c in row) for row in table)
                         if table_text not in text:
                             pages[-1] += f"\n\n[Table]\n{table_text}"
-            file_info["page_count"] = len(pdf.pages)
+            file_info["page_count"] = len(pages_to_process)
+            file_info["total_pages"] = len(pdf.pages)
         return RawDocument(
             content="\n\n".join(pages), source=str(Path(file_path).absolute()),
             file_type="pdf", file_name=file_info["file_name"], metadata=file_info, pages=pages
@@ -172,8 +184,20 @@ class UnifiedFileParser:
     def get_supported_extensions(self) -> List[str]:
         return [ext for p in self._parsers for ext in p.supported_extensions]
 
-    def parse(self, file_path: str) -> RawDocument:
+    def parse(self, file_path: str, max_pages: int = None) -> RawDocument:
+        """파일 파싱
+
+        Args:
+            file_path: 파일 경로
+            max_pages: PDF의 경우 최대 처리 페이지 수 (None이면 전체)
+
+        Returns:
+            RawDocument 객체
+        """
         for parser in self._parsers:
             if parser.can_you_parse(file_path):
+                # PDF 파서인 경우 max_pages 전달
+                if isinstance(parser, PDFParser) and max_pages:
+                    return parser.parse(file_path, max_pages=max_pages)
                 return parser.parse(file_path)
         raise ValueError(f"지원하지 않는 파일 형식: {Path(file_path).suffix}")

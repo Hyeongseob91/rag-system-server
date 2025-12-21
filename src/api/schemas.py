@@ -57,7 +57,7 @@ class CollectionsResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    weaviate_connected: bool
+    qdrant_connected: bool
     document_count: int
     version: str
 

@@ -35,4 +35,10 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/", tags=["Root"])
 async def root():
-    return {"service": "RAG Pipeline API", "version": "1.0.0", "docs": "/docs", "health": "/api/v1/health"}
+    return {"service": "RAG Pipeline API", "version": "2.0.0", "docs": "/docs", "health": "/health"}
+
+
+@app.get("/health", tags=["Root"])
+async def health():
+    """Simple health check for frontend"""
+    return {"status": "ok"}

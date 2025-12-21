@@ -38,6 +38,7 @@ class Chunk:
         return len(self.content)
 
     def to_weaviate_object(self) -> Dict[str, Any]:
+        """Weaviate용 객체 변환 (Legacy)"""
         created_at = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         return {
             "content": self.content,
@@ -52,6 +53,23 @@ class Chunk:
             "page_number": self.metadata.get("page_number"),
             "sheet_name": self.metadata.get("sheet_name"),
             "created_at": created_at,
+        }
+
+    def to_qdrant_payload(self) -> Dict[str, Any]:
+        """Qdrant용 payload 변환"""
+        return {
+            "content": self.content,
+            "chunk_id": self.chunk_id,
+            "doc_id": self.doc_id,
+            "chunk_index": self.chunk_index,
+            "total_chunks": self.metadata.get("total_chunks", 1),
+            "source": self.source,
+            "file_name": self.file_name,
+            "file_type": self.file_type,
+            "char_count": self.char_count,
+            "page_number": self.metadata.get("page_number"),
+            "sheet_name": self.metadata.get("sheet_name"),
+            "created_at": datetime.now().isoformat(),
         }
 
 

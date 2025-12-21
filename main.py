@@ -43,12 +43,12 @@ class RAGApplication:
 
     def initialize(self, create_collection: bool = False) -> "RAGApplication":
         if self._vectorstore_service.is_ready():
-            print("✅ VectorStore 연결 완료")
+            print("✅ Qdrant 연결 완료")
         else:
-            raise RuntimeError("VectorStore 연결 실패")
+            raise RuntimeError("Qdrant 연결 실패")
         if create_collection:
-            self._vectorstore_service.create_collection(extended_schema=True)
-            print("✅ 컬렉션 생성 완료")
+            self._vectorstore_service.create_collection()
+            print("✅ 컬렉션 생성 완료 (Dense + BM25 Sparse)")
         self._workflow.build()
         print("✅ RAG 워크플로우 빌드 완료")
         return self
@@ -71,6 +71,7 @@ class RAGApplication:
 
     def close(self) -> None:
         self._vectorstore_service.close()
+        self._reranker_service.close()
         print("✅ 리소스 정리 완료")
 
 

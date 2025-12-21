@@ -19,7 +19,9 @@ class PreprocessingPipeline:
 
     def process_file(self, file_path: str) -> PreprocessingResult:
         try:
-            raw_doc = self._parser.parse(file_path)
+            # max_pages 설정 적용 (0이면 전체 페이지)
+            max_pages = self.settings.preprocessing.max_pages or None
+            raw_doc = self._parser.parse(file_path, max_pages=max_pages)
             normalized_doc = self._normalizer.normalize_document(raw_doc)
             chunks = self._chunking_service.chunk_document(normalized_doc)
             for chunk in chunks:

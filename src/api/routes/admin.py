@@ -16,9 +16,9 @@ async def health_check(rag_app: RAGApplication = Depends(get_rag_app)):
         connected, doc_count = False, 0
     return HealthResponse(
         status="healthy" if connected else "degraded",
-        weaviate_connected=connected,
+        qdrant_connected=connected,
         document_count=doc_count,
-        version="1.0.0",
+        version="2.0.0",
     )
 
 
@@ -38,5 +38,5 @@ async def delete_collection(name: str, rag_app: RAGApplication = Depends(get_rag
     current = rag_app.settings.vectorstore.collection_name
     if name != current:
         raise HTTPException(status_code=404, detail={"error": "CollectionNotFound", "message": f"컬렉션 없음: {name}"})
-    rag_app.vectorstore.create_collection(extended_schema=True)
+    rag_app.vectorstore.create_collection()
     return CollectionDeleteResponse(success=True, message="컬렉션이 재생성되었습니다.", deleted_collection=name)
