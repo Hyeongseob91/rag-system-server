@@ -10,10 +10,9 @@ RUN pip install uv
 WORKDIR /app
 
 COPY pyproject.toml ./
+COPY src ./src
 
-RUN uv pip install --system -e .
-
-COPY . .
+RUN uv pip install --system .
 
 RUN mkdir -p /app/uploads
 

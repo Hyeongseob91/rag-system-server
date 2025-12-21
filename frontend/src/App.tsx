@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Database, MessageSquare, Search, Bell, Settings } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
 import { ChatInterface } from './components/ChatInterface';
