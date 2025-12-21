@@ -22,4 +22,4 @@ ENV PYTHONPATH=/app
 
 EXPOSE 8188
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8188"]
+CMD ["uvicorn", "src.presentation.api.main:app", "--host", "0.0.0.0", "--port", "8188"]

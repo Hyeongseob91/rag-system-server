@@ -10,24 +10,75 @@ venv/
 *.egg-info/
 dist/
 build/
+*.egg
+.eggs/
+pip-wheel-metadata/
+
+# Python tools cache
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
 
 # Environment
 .env
 .env.local
+.env.*.local
+*.env
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+*.suvim
 .claude
+*.sublime-project
+*.sublime-workspace
 
-# Project
+# OS
+.DS_Store
+Thumbs.db
+*.~lock.*
+
+# Node.js (frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Project specific
 weaviate_data/
+qdrant_storage/
 uploads/
+models/
 *.log
+logs/
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
+# Security - never commit these
+*.pem
+*.key
+*.crt
+*.p12
+secrets/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Docker (local volumes)
+docker-volumes/
+.dockerignore
