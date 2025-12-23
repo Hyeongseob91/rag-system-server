@@ -4,6 +4,7 @@ VectorStore Service - Qdrant Hybrid Search
 Infrastructure Layer: Qdrant 벡터 DB와의 통신을 담당합니다.
 Dense (OpenAI) + Sparse (BM25) Hybrid Search를 수행합니다.
 """
+import time
 import uuid
 from typing import TYPE_CHECKING, List, Optional
 
@@ -22,10 +23,13 @@ from qdrant_client.models import (
 )
 
 from src.core import Settings
+from src.core.logging import get_logger
 from .bm25_service import BM25Service
 
 if TYPE_CHECKING:
     from src.domain.entities import Chunk
+
+logger = get_logger(__name__)
 
 
 class VectorStoreService:
@@ -117,14 +121,20 @@ class VectorStoreService:
     def add_chunks(self, chunks: List["Chunk"]) -> int:
         """청크 저장 (Dense + Sparse 벡터 동시 저장)"""
         if not chunks:
+            logger.debug("[VectorStore] 저장할 청크가 없습니다")
             return 0
+
+        logger.info("[VectorStore] %d개 청크 저장 시작", len(chunks))
+        start_time = time.time()
 
         texts = [c.content for c in chunks]
 
         # Dense vectors (OpenAI)
+        logger.debug("[VectorStore] Dense 임베딩 생성 중...")
         dense_vectors = self.embeddings.embed_documents(texts)
 
         # Sparse vectors (BM25)
+        logger.debug("[VectorStore] Sparse 벡터 생성 중...")
         sparse_vectors = self.bm25.encode(texts)
 
         # Points 생성
@@ -149,6 +159,8 @@ class VectorStoreService:
             points=points
         )
 
+        elapsed_ms = (time.time() - start_time) * 1000
+        logger.info("[VectorStore] %d개 청크 저장 완료 (%.1fms)", len(points), elapsed_ms)
         return len(points)
 
     def get_document_count(self) -> int:
@@ -170,6 +182,9 @@ class VectorStoreService:
         """
         if limit is None:
             limit = self.settings.retriever.initial_limit
+
+        logger.debug("[VectorStore] Hybrid Search 시작: %s", query[:50])
+        start_time = time.time()
 
         # 쿼리 벡터 생성
         dense_query = self.embeddings.embed_query(query)
@@ -193,6 +208,10 @@ class VectorStoreService:
             query=Query(fusion="rrf"),
             limit=limit
         )
+
+        elapsed_ms = (time.time() - start_time) * 1000
+        logger.info("[VectorStore] Hybrid Search 완료: %d개 결과 (%.1fms)",
+                   len(results.points), elapsed_ms)
 
         return [point.payload.get("content", "") for point in results.points]
 

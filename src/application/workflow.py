@@ -4,15 +4,19 @@ RAG Workflow - LangGraph
 Application Layer: RAG 파이프라인의 흐름을 정의합니다.
 각 노드(Domain Layer)를 조합하여 유스케이스를 구성합니다.
 """
+import time
 from typing import Literal
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import StateGraph, END
 
 from .state import RAGState
+from src.core.logging import get_logger
 from src.domain.entities import RouteQuery
 from src.domain.nodes import QueryRewriteNode, RetrieverNode, GeneratorNode, SimpleGeneratorNode
 from src.domain.prompts import ROUTER_SYSTEM_PROMPT
 from src.infrastructure import LLMService
+
+logger = get_logger(__name__)
 
 
 class RAGWorkflow:
@@ -48,7 +52,9 @@ class RAGWorkflow:
 
     def route_question(self, state: RAGState) -> Literal["query_rewrite", "simple_generator"]:
         """질문을 분석하여 경로 결정"""
-        print(f"--- [Router] 질문 분석 중: {state['question']} ---")
+        logger.info("[Router] 질문 분석 시작: %s", state['question'][:100])
+        start_time = time.time()
+
         llm = self._llm_service.get_rewrite_llm()
         prompt = ChatPromptTemplate.from_messages([
             ("system", ROUTER_SYSTEM_PROMPT),
@@ -57,11 +63,13 @@ class RAGWorkflow:
         decision = self._llm_service.invoke_with_structured_output(
             llm=llm, prompt=prompt, output_schema=RouteQuery, input_data={"question": state["question"]}
         )
+
+        elapsed_ms = (time.time() - start_time) * 1000
         if decision.datasource == "vectorstore":
-            print("--- [Decision] RAG 검색 진행 ---")
+            logger.info("[Router] RAG 검색 경로 선택 (%.1fms)", elapsed_ms)
             return self._query_rewrite_node.name
         else:
-            print("--- [Decision] 일반 대화 진행 ---")
+            logger.info("[Router] 일반 대화 경로 선택 (%.1fms)", elapsed_ms)
             return self._simple_generator_node.name
 
     def build(self) -> "RAGWorkflow":
@@ -101,9 +109,17 @@ class RAGWorkflow:
 
     def invoke(self, question: str) -> dict:
         """워크플로우 실행"""
-        return self.app.invoke({
+        logger.info("[Workflow] 실행 시작")
+        start_time = time.time()
+
+        result = self.app.invoke({
             "question": question,
             "optimized_queries": [],
             "retrieved_docs": [],
             "final_answer": ""
         })
+
+        elapsed_ms = (time.time() - start_time) * 1000
+        logger.info("[Workflow] 실행 완료 (%.1fms) - 검색 문서: %d개",
+                   elapsed_ms, len(result.get("retrieved_docs", [])))
+        return result

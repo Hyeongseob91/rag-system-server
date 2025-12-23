@@ -3,9 +3,11 @@ Document Repository
 
 Infrastructure Layer: 문서 메타데이터 데이터 접근
 """
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
-from src.domain.entities import Document
+if TYPE_CHECKING:
+    from src.domain.entities import Document
+
 from src.infrastructure.database_service import DatabaseService
 
 
@@ -21,7 +23,7 @@ class DocumentRepository:
         file_name: str,
         chunk_count: Optional[int] = None,
         status: str = "completed"
-    ) -> Document:
+    ) -> "Document":
         """새 문서 메타데이터 생성
 
         Args:
@@ -33,6 +35,7 @@ class DocumentRepository:
         Returns:
             생성된 Document 엔티티
         """
+        from src.domain.entities.conversation import Document
         with self._db.session_scope() as session:
             document = Document(
                 user_id=user_id,
@@ -51,7 +54,7 @@ class DocumentRepository:
         user_id: int,
         limit: int = 50,
         offset: int = 0
-    ) -> List[Document]:
+    ) -> List["Document"]:
         """사용자별 문서 목록 조회
 
         Args:
@@ -62,6 +65,7 @@ class DocumentRepository:
         Returns:
             Document 목록 (최신순)
         """
+        from src.domain.entities.conversation import Document
         with self._db.session_scope() as session:
             documents = (
                 session.query(Document)
@@ -75,7 +79,7 @@ class DocumentRepository:
                 session.expunge(doc)
             return documents
 
-    def get_by_id(self, document_id: int) -> Optional[Document]:
+    def get_by_id(self, document_id: int) -> Optional["Document"]:
         """ID로 문서 조회
 
         Args:
@@ -84,6 +88,7 @@ class DocumentRepository:
         Returns:
             Document 엔티티 또는 None
         """
+        from src.domain.entities.conversation import Document
         with self._db.session_scope() as session:
             document = (
                 session.query(Document)
@@ -99,7 +104,7 @@ class DocumentRepository:
         document_id: int,
         status: str,
         chunk_count: Optional[int] = None
-    ) -> Optional[Document]:
+    ) -> Optional["Document"]:
         """문서 상태 업데이트
 
         Args:
@@ -110,6 +115,7 @@ class DocumentRepository:
         Returns:
             업데이트된 Document 엔티티 또는 None
         """
+        from src.domain.entities.conversation import Document
         with self._db.session_scope() as session:
             document = (
                 session.query(Document)
@@ -134,6 +140,7 @@ class DocumentRepository:
         Returns:
             문서 개수
         """
+        from src.domain.entities.conversation import Document
         with self._db.session_scope() as session:
             return (
                 session.query(Document)

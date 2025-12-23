@@ -3,9 +3,11 @@ User Repository
 
 Infrastructure Layer: 사용자 데이터 접근
 """
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from src.domain.entities import User
+if TYPE_CHECKING:
+    from src.domain.entities import User
+
 from src.infrastructure.database_service import DatabaseService
 
 
@@ -15,7 +17,7 @@ class UserRepository:
     def __init__(self, database_service: DatabaseService):
         self._db = database_service
 
-    def create(self, username: str, password_hash: str) -> User:
+    def create(self, username: str, password_hash: str) -> "User":
         """새 사용자 생성
 
         Args:
@@ -25,6 +27,7 @@ class UserRepository:
         Returns:
             생성된 User 엔티티
         """
+        from src.domain.entities.user import User
         with self._db.session_scope() as session:
             user = User(username=username, password_hash=password_hash)
             session.add(user)
@@ -34,7 +37,7 @@ class UserRepository:
             session.expunge(user)
             return user
 
-    def get_by_id(self, user_id: int) -> Optional[User]:
+    def get_by_id(self, user_id: int) -> Optional["User"]:
         """ID로 사용자 조회
 
         Args:
@@ -43,13 +46,14 @@ class UserRepository:
         Returns:
             User 엔티티 또는 None
         """
+        from src.domain.entities.user import User
         with self._db.session_scope() as session:
             user = session.query(User).filter(User.id == user_id).first()
             if user:
                 session.expunge(user)
             return user
 
-    def get_by_username(self, username: str) -> Optional[User]:
+    def get_by_username(self, username: str) -> Optional["User"]:
         """사용자 이름으로 조회
 
         Args:
@@ -58,6 +62,7 @@ class UserRepository:
         Returns:
             User 엔티티 또는 None
         """
+        from src.domain.entities.user import User
         with self._db.session_scope() as session:
             user = session.query(User).filter(User.username == username).first()
             if user:
@@ -73,5 +78,6 @@ class UserRepository:
         Returns:
             존재 여부
         """
+        from src.domain.entities.user import User
         with self._db.session_scope() as session:
             return session.query(User).filter(User.username == username).count() > 0

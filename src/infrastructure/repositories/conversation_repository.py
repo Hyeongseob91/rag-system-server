@@ -3,9 +3,11 @@ Conversation Repository
 
 Infrastructure Layer: 대화 히스토리 데이터 접근
 """
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
-from src.domain.entities import Conversation
+if TYPE_CHECKING:
+    from src.domain.entities import Conversation
+
 from src.infrastructure.database_service import DatabaseService
 
 
@@ -23,7 +25,7 @@ class ConversationRepository:
         sources: Optional[list] = None,
         routing_decision: Optional[str] = None,
         processing_time_ms: Optional[float] = None
-    ) -> Conversation:
+    ) -> "Conversation":
         """새 대화 기록 생성
 
         Args:
@@ -37,6 +39,7 @@ class ConversationRepository:
         Returns:
             생성된 Conversation 엔티티
         """
+        from src.domain.entities.conversation import Conversation
         with self._db.session_scope() as session:
             conversation = Conversation(
                 user_id=user_id,
@@ -57,7 +60,7 @@ class ConversationRepository:
         user_id: int,
         limit: int = 50,
         offset: int = 0
-    ) -> List[Conversation]:
+    ) -> List["Conversation"]:
         """사용자별 대화 히스토리 조회
 
         Args:
@@ -68,6 +71,7 @@ class ConversationRepository:
         Returns:
             Conversation 목록 (최신순)
         """
+        from src.domain.entities.conversation import Conversation
         with self._db.session_scope() as session:
             conversations = (
                 session.query(Conversation)
@@ -81,7 +85,7 @@ class ConversationRepository:
                 session.expunge(conv)
             return conversations
 
-    def get_by_id(self, conversation_id: int) -> Optional[Conversation]:
+    def get_by_id(self, conversation_id: int) -> Optional["Conversation"]:
         """ID로 대화 조회
 
         Args:
@@ -90,6 +94,7 @@ class ConversationRepository:
         Returns:
             Conversation 엔티티 또는 None
         """
+        from src.domain.entities.conversation import Conversation
         with self._db.session_scope() as session:
             conversation = (
                 session.query(Conversation)
@@ -109,6 +114,7 @@ class ConversationRepository:
         Returns:
             대화 개수
         """
+        from src.domain.entities.conversation import Conversation
         with self._db.session_scope() as session:
             return (
                 session.query(Conversation)

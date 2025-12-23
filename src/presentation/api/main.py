@@ -13,7 +13,7 @@ from .routes import query, upload, admin, auth
 app = FastAPI(
     title="RAG Pipeline API",
     description="OpenAI API 기반 RAG 서비스 (JWT 인증 지원)",
-    version="2.0.0",
+    version="0.1.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
