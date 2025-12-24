@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Database, MessageSquare, Search, Bell, Settings } from 'lucide-react';
+import { Database, MessageSquare, Search, Bell, Settings, BarChart2 } from 'lucide-react';
 import { Dashboard } from './components/Dashboard';
 import { ChatInterface } from './components/ChatInterface';
+import { EvaluationPage } from './components/evaluation';
 import { sendQuery, uploadDocument, checkHealth } from './services/api';
 import type { Message, UploadedFile, TokenUsage } from './types/chat';
 
-type MenuType = 'dashboard' | 'chat';
+type MenuType = 'dashboard' | 'chat' | 'evaluation';
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -172,6 +173,17 @@ function App() {
           >
             <MessageSquare className="w-5 h-5" />
           </button>
+          <button
+            onClick={() => setActiveMenu('evaluation')}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+              activeMenu === 'evaluation'
+                ? 'bg-blue-100 text-blue-600'
+                : 'text-gray-400 hover:bg-gray-100'
+            }`}
+            title="Evaluation"
+          >
+            <BarChart2 className="w-5 h-5" />
+          </button>
         </nav>
 
         <div className="flex flex-col items-center gap-2">
@@ -245,6 +257,12 @@ function App() {
                 isLoading={isLoading}
                 isConnected={isConnected}
               />
+            </div>
+          )}
+
+          {activeMenu === 'evaluation' && (
+            <div className="flex-1 overflow-hidden">
+              <EvaluationPage />
             </div>
           )}
         </div>

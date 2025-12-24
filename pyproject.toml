@@ -29,6 +29,9 @@ dependencies = [
     # Authentication
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.0",
+    # Evaluation
+    "ragas>=0.1.0",
+    "datasets>=2.0.0",
 ]
 
 [project.optional-dependencies]

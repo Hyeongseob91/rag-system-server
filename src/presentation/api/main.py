@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .dependencies import lifespan
-from .routes import query, upload, admin, auth
+from .routes import query, upload, admin, auth, evaluation
 
 app = FastAPI(
     title="RAG Pipeline API",
@@ -32,6 +32,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(query.router)
 app.include_router(upload.router)
 app.include_router(admin.router)
+app.include_router(evaluation.router)
 
 
 @app.exception_handler(Exception)
